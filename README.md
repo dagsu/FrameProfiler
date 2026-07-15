@@ -10,55 +10,90 @@ compile-time code-generation, with the following goals:
 ```java
 import dev.dagsu.profiler.Profiler;
 
-static {
-    // Call once to init tracy if it is available.
-    Profiler.start("MyApp");
-}
+// Start up the profiler so that Tracy client can connect
+@Profiler.Setup("MyAppInfo")
+class AppMain {
 
-// Generates a thread identifier under which frames and scopes are recorded.
-// The default thread name will be derived from the class + method name but can be statically overridden
-// by setting the annotation value `@Profiler.Thread(value="ThreadName")` or by pulling from an accessible
-// `String` field in the class `@Profiler.Thread(var="nameField")`.
-@Profiler.Thread 
-void run() {
-    // Generates a frame identifier and counter for the thread which is incremented in the `while` condition.
-    @Profiler.Frame("Frame")
-    final boolean frameMarker = true;
+    // Generates a thread identifier under which frames and scopes are recorded.
+    // The default thread name will be derived from the class + method name but can be statically overridden
+    // by setting the annotation value `@Profiler.Thread(value="ThreadName")` or by pulling from an accessible
+    // `String` field in the class `@Profiler.Thread(var="nameField")`.
+    @Profiler.Thread
+    void run() {
+        // Generates a frame identifier and counter for the thread which is incremented in the `while` condition.
+        @Profiler.Frame("Frame") 
+        final boolean frameMarker = true;
 
-    while (running && frameMarker) {
-        tick();
+        while (running && frameMarker) {
+            tick();
+        }
+    }
+
+    // Generates a scoped section that opens at the head of the method and auto-closes on exit.
+    // Scopes can be nested if the method calls other methods that are also scope-annotated.
+    // The default scope name is derived from the class + method name but can be statically overridden
+    // by setting the annotation value `@Profiler.Scope("Tick")`
+    @Profiler.Scope
+    void tick() {
+        // do work
     }
 }
-
-// Generates a scoped section that opens at the head of the method and auto-closes on exit.
-// Scopes can be nested if the method calls other methods that are also scope-annotated.
-// The default scope name is derived from the class + method name but can be statically overridden
-// by setting the annotation value `@Profiler.Scope("Tick")`
-@Profiler.Scope
-void tick() {
-    // do work
-}
 ```
+#### Maven Config:
 
-### Annotation Processor:
+With this configuration you can toggle the "frame-profiler" profile to toggle the profiler injections on and off.  
+You can use this via `mvn clean compile -P frame-profiler`.
 
-```
-dev.dagsu.profiler.Processor
-```
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
 
-#### Options
+<dependencies>
+    <dependency>
+        <groupId>com.github.dagsu</groupId>
+        <artifactId>FrameProfiler</artifactId>
+        <version>-SNAPSHOT</version>
+    </dependency>
+</dependencies>
 
-Enable / disable profiler code generation.
-
-```
-tracy.weave=true|false
-```
-
-
-### JVM Option:
-
-Enable or disable runtime profiling.
-
-```
--Dtracy=true|false
+<profiles>
+    <profile>
+        <id>frame-profiler</id>
+        <build>
+            <pluginManagement>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <version>3.13.0</version>
+                        <configuration>
+                            <source>${java.targetversion}</source>
+                            <target>${java.targetversion}</target>
+                            <fork>true</fork>
+                            <compilerArgs>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</arg>
+                                <arg>-Atracy.weave=true</arg>
+                            </compilerArgs>
+                            <annotationProcessorPaths>
+                                <path>
+                                    <groupId>com.github.dagsu.FrameProfiler</groupId>
+                                    <artifactId>Processor</artifactId>
+                                    <version>-SNAPSHOT</version>
+                                </path>
+                            </annotationProcessorPaths>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </pluginManagement>
+        </build>
+    </profile>
+</profiles>
 ```

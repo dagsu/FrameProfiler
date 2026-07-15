@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@Profiler.Setup("ExampleApp")
 public class Example {
     @Nonnull
     protected final String threadName;
@@ -114,8 +115,6 @@ public class Example {
     }
 
     static void main(String[] args) throws InterruptedException {
-        Profiler.start("Example");
-
         final var example = new Example("MainThread");
         final var thread = new Thread(example::run);
         thread.start();

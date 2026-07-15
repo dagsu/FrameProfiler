@@ -33,6 +33,7 @@ import java.util.Set;
 public class Processor extends AbstractProcessor {
     static final String THREAD_ANNOTATION = "dev.dagsu.profiler.Profiler.Thread";
     static final String SCOPE_ANNOTATION = "dev.dagsu.profiler.Profiler.Scope";
+    static final String SETUP_ANNOTATION = "dev.dagsu.profiler.Profiler.Setup";
     static final String OPTION_WEAVE = "tracy.weave";
 
     private static final String TRACY = "com.mojang.jtracy.ProfilerHooks";
@@ -99,6 +100,8 @@ public class Processor extends AbstractProcessor {
         // any bodiless method is handled per-method in weaveMethod.
         if (type.getKind().isInterface()) return;
 
+        weaveSetup(type);
+
         for (Element enclosed : type.getEnclosedElements()) {
             if (enclosed instanceof TypeElement nested) {
                 weaveType(nested);
@@ -142,6 +145,18 @@ public class Processor extends AbstractProcessor {
             }
         }
         return null;
+    }
+
+    private void weaveSetup(TypeElement type) {
+        AnnotationMirror setup = annotationMirror(type, SETUP_ANNOTATION);
+        if (setup == null || !(trees.getTree(type) instanceof JCClassDecl decl)) {
+            return;
+        }
+        make.at(decl.pos);
+        // Insert `static { ProfilerHooks.startup("<appInfo>"); }` at the top of the class body.
+        JCStatement call = make.Exec(call("startup", make.Literal(annotationMember(setup, "value"))));
+        JCBlock init = make.Block(Flags.STATIC, List.of(call));
+        decl.defs = decl.defs.prepend(init);
     }
 
     private void weaveMethod(ExecutableElement method, String scopeName) {
